@@ -255,6 +255,13 @@ export default {
     this.$bus.$on('lang_change', this.computeToolbarShowThrottle)
     window.addEventListener('beforeunload', this.onUnload)
     this.$bus.$on('node_note_dblclick', this.onNodeNoteDblclick)
+    
+    // 添加调试信息
+    const support = this.checkFileSystemSupport()
+    console.log('File System Access API支持情况:', support)
+    if (support.isSafari) {
+      console.log('当前Safari版本:', support.safariVersion)
+    }
   },
   beforeDestroy() {
     this.$bus.$off('write_local_file', this.onWriteLocalFile)
@@ -314,6 +321,16 @@ export default {
     // 加载本地文件树
     async loadFileTreeNode(node, resolve) {
       try {
+        const support = this.checkFileSystemSupport()
+        if (!support.showDirectoryPicker) {
+          this.handleFileSystemError(
+            new Error('showDirectoryPicker not supported'),
+            'showDirectoryPicker'
+          )
+          resolve([])
+          return
+        }
+
         let dirHandle
         if (node.level === 0) {
           dirHandle = await window.showDirectoryPicker()
@@ -345,13 +362,9 @@ export default {
         }
         resolve([...dirList, ...fileList])
       } catch (error) {
-        console.log(error)
+        this.handleFileSystemError(error, 'showDirectoryPicker')
         this.fileTreeVisible = false
         resolve([])
-        if (error.toString().includes('aborted')) {
-          return
-        }
-        this.$message.warning(this.$t('toolbar.notSupportTip'))
       }
     },
 
@@ -387,9 +400,77 @@ export default {
       }
     },
 
+    // 检测File System Access API支持情况
+    checkFileSystemSupport() {
+      const support = {
+        showDirectoryPicker: 'showDirectoryPicker' in window,
+        showOpenFilePicker: 'showOpenFilePicker' in window,
+        showSaveFilePicker: 'showSaveFilePicker' in window,
+        FileSystemFileHandle: 'FileSystemFileHandle' in window,
+        FileSystemDirectoryHandle: 'FileSystemDirectoryHandle' in window
+      }
+      
+      // Safari特定检测
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+      
+      return {
+        ...support,
+        isSafari,
+        allSupported: Object.values(support).every(Boolean),
+        safariVersion: isSafari ? this.getSafariVersion() : null
+      }
+    },
+
+    // 获取Safari版本
+    getSafariVersion() {
+      const userAgent = navigator.userAgent
+      const safariMatch = userAgent.match(/version\/(\d+\.\d+)/i)
+      return safariMatch ? safariMatch[1] : 'unknown'
+    },
+
+    // 详细的错误处理
+    handleFileSystemError(error, apiType) {
+      console.error(`${apiType} 错误:`, error)
+      
+      const support = this.checkFileSystemSupport()
+      
+      if (support.isSafari && !support.allSupported) {
+        this.$message.error(
+          `Safari ${support.safariVersion} 不支持完整的File System Access API。请升级到Safari 15.4+。`
+        )
+        return
+      }
+      
+      if (error.name === 'NotAllowedError') {
+        this.$message.error(
+          '权限被拒绝。请确保：\n1. 网站使用HTTPS\n2. Safari偏好设置中已允许文件访问\n3. 重新加载页面后重试'
+        )
+      } else if (error.name === 'AbortError') {
+        // 用户取消，静默处理
+        return
+      } else if (error.name === 'SecurityError') {
+        this.$message.error(
+          '安全错误：请确保网站通过HTTPS访问，且不在隐私浏览模式下'
+        )
+      } else {
+        this.$message.error(
+          `操作失败：${error.message || '未知错误'}。请检查Safari设置或尝试使用其他浏览器。`
+        )
+      }
+    },
+
     // 打开本地文件
     async openLocalFile() {
       try {
+        const support = this.checkFileSystemSupport()
+        if (!support.showOpenFilePicker) {
+          this.handleFileSystemError(
+            new Error('showOpenFilePicker not supported'),
+            'showOpenFilePicker'
+          )
+          return
+        }
+
         let [_fileHandle] = await window.showOpenFilePicker({
           types: [
             {
@@ -412,13 +493,9 @@ export default {
         }
         this.readFile()
       } catch (error) {
-        console.log(error)
-        if (error.toString().includes('aborted')) {
-          return
-        }
-        this.$message.warning(this.$t('toolbar.notSupportTip'))
+        this.handleFileSystemError(error, 'showOpenFilePicker')
       }
-    },
+    },","},{
 
     // 读取本地文件
     async readFile() {
@@ -493,6 +570,15 @@ export default {
     // 创建本地文件
     async createLocalFile(content) {
       try {
+        const support = this.checkFileSystemSupport()
+        if (!support.showSaveFilePicker) {
+          this.handleFileSystemError(
+            new Error('showSaveFilePicker not supported'),
+            'showSaveFilePicker'
+          )
+          return
+        }
+
         let _fileHandle = await window.showSaveFilePicker({
           types: [
             {
@@ -518,13 +604,9 @@ export default {
         await this.readFile()
         loading.close()
       } catch (error) {
-        console.log(error)
-        if (error.toString().includes('aborted')) {
-          return
-        }
-        this.$message.warning(this.$t('toolbar.notSupportTip'))
+        this.handleFileSystemError(error, 'showSaveFilePicker')
       }
-    },
+    }
 
     onNodeNoteDblclick(node, e) {
       e.stopPropagation()
