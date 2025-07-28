@@ -400,6 +400,13 @@ export default {
       }
     },
 
+    // 获取Safari版本
+    getSafariVersion() {
+      const userAgent = navigator.userAgent
+      const safariMatch = userAgent.match(/version\/(\d+\.\d+)/i)
+      return safariMatch ? safariMatch[1] : 'unknown'
+    },
+
     // 检测File System Access API支持情况
     checkFileSystemSupport() {
       const support = {
@@ -413,6 +420,27 @@ export default {
       // Safari特定检测
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
       
+      // 在Safari中，即使API存在，也可能因为权限或其他原因无法使用
+      // 因此需要更细致的检测
+      if (isSafari) {
+        // 获取Safari版本
+        const safariVersion = this.getSafariVersion()
+        // Safari 15.4+ 才开始支持File System Access API
+        const versionParts = safariVersion.split('.').map(Number)
+        const majorVersion = versionParts[0] || 0
+        const minorVersion = versionParts[1] || 0
+        
+        // 如果版本低于15.4，则认为不支持
+        if (majorVersion < 15 || (majorVersion === 15 && minorVersion < 4)) {
+          return {
+            ...support,
+            isSafari,
+            allSupported: false,
+            safariVersion
+          }
+        }
+      }
+      
       return {
         ...support,
         isSafari,
@@ -421,19 +449,13 @@ export default {
       }
     },
 
-    // 获取Safari版本
-    getSafariVersion() {
-      const userAgent = navigator.userAgent
-      const safariMatch = userAgent.match(/version\/(\d+\.\d+)/i)
-      return safariMatch ? safariMatch[1] : 'unknown'
-    },
-
     // 详细的错误处理
     handleFileSystemError(error, apiType) {
       console.error(`${apiType} 错误:`, error)
       
       const support = this.checkFileSystemSupport()
       
+      // 如果是Safari且版本过低
       if (support.isSafari && !support.allSupported) {
         this.$message.error(
           `Safari ${support.safariVersion} 不支持完整的File System Access API。请升级到Safari 15.4+。`
@@ -441,9 +463,32 @@ export default {
         return
       }
       
+      // 如果是Safari且版本符合要求，但仍报错，则可能是权限问题
+      if (support.isSafari && support.allSupported) {
+        if (error.name === 'NotAllowedError') {
+          this.$message.error(
+            '权限被拒绝。请确保：\n1. 网站使用HTTPS\n2. Safari偏好设置中已允许文件访问\n3. 重新加载页面后重试'
+          )
+        } else if (error.name === 'AbortError') {
+          // 用户取消，静默处理
+          return
+        } else if (error.name === 'SecurityError') {
+          this.$message.error(
+            '安全错误：请确保网站通过HTTPS访问，且不在隐私浏览模式下'
+          )
+        } else {
+          // 其他错误，给出通用提示
+          this.$message.error(
+            `操作失败：${error.message || '未知错误'}。请检查Safari设置或尝试使用其他浏览器。`
+          )
+        }
+        return
+      }
+      
+      // 非Safari浏览器的错误处理保持不变
       if (error.name === 'NotAllowedError') {
         this.$message.error(
-          '权限被拒绝。请确保：\n1. 网站使用HTTPS\n2. Safari偏好设置中已允许文件访问\n3. 重新加载页面后重试'
+          '权限被拒绝。请确保：\n1. 网站使用HTTPS\n2. 浏览器已允许文件访问\n3. 重新加载页面后重试'
         )
       } else if (error.name === 'AbortError') {
         // 用户取消，静默处理
@@ -454,7 +499,7 @@ export default {
         )
       } else {
         this.$message.error(
-          `操作失败：${error.message || '未知错误'}。请检查Safari设置或尝试使用其他浏览器。`
+          `操作失败：${error.message || '未知错误'}。请检查浏览器设置或尝试使用其他浏览器。`
         )
       }
     },
