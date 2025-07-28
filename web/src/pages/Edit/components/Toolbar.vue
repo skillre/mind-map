@@ -506,8 +506,15 @@ export default {
 
     // 打开本地文件
     async openLocalFile() {
+      const support = this.checkFileSystemSupport()
+      
+      // 如果是Safari且不支持File System Access API，则使用传统方式
+      if (support.isSafari && !support.allSupported) {
+        this.openLocalFileTraditional()
+        return
+      }
+      
       try {
-        const support = this.checkFileSystemSupport()
         if (!support.showOpenFilePicker) {
           this.handleFileSystemError(
             new Error('showOpenFilePicker not supported'),
@@ -540,82 +547,56 @@ export default {
       } catch (error) {
         this.handleFileSystemError(error, 'showOpenFilePicker')
       }
-    },","},{
-
-    // 读取本地文件
-    async readFile() {
-      let file = await fileHandle.getFile()
-      let fileReader = new FileReader()
-      fileReader.onload = async () => {
-        this.$store.commit('setIsHandleLocalFile', true)
-        this.setData(fileReader.result)
-        Notification.closeAll()
-        Notification({
-          title: this.$t('toolbar.tip'),
-          message: `${this.$t('toolbar.editingLocalFileTipFront')}${
-            file.name
-          }${this.$t('toolbar.editingLocalFileTipEnd')}`,
-          duration: 0,
-          showClose: true
-        })
-      }
-      fileReader.readAsText(file)
     },
 
-    // 渲染读取的数据
-    setData(str) {
-      try {
-        let data = JSON.parse(str)
-        if (typeof data !== 'object') {
-          throw new Error(this.$t('toolbar.fileContentError'))
-        }
-        if (data.root) {
-          this.isFullDataFile = true
-        } else {
-          this.isFullDataFile = false
-          data = {
-            ...exampleData,
-            root: data
+    // 使用传统方式打开本地文件（用于Safari等不支持File System Access API的浏览器）
+    openLocalFileTraditional() {
+      // 创建input元素
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.smm'
+      input.style.display = 'none'
+      
+      // 监听change事件
+      input.onchange = (event) => {
+        const file = event.target.files[0]
+        if (file) {
+          // 读取文件内容
+          const fileReader = new FileReader()
+          fileReader.onload = () => {
+            this.$store.commit('setIsHandleLocalFile', true)
+            this.setData(fileReader.result)
+            Notification.closeAll()
+            Notification({
+              title: this.$t('toolbar.tip'),
+              message: `${this.$t('toolbar.editingLocalFileTipFront')}${
+                file.name
+              }${this.$t('toolbar.editingLocalFileTipEnd')}`,
+              duration: 0,
+              showClose: true
+            })
           }
+          fileReader.readAsText(file)
         }
-        this.$bus.$emit('setData', data)
-      } catch (error) {
-        console.log(error)
-        this.$message.error(this.$t('toolbar.fileOpenFailed'))
       }
-    },
-
-    // 写入本地文件
-    async writeLocalFile(content) {
-      if (!fileHandle || !this.isHandleLocalFile) {
-        this.waitingWriteToLocalFile = false
-        return
-      }
-      if (!this.isFullDataFile) {
-        content = content.root
-      }
-      let string = JSON.stringify(content)
-      const writable = await fileHandle.createWritable()
-      await writable.write(string)
-      await writable.close()
-      this.waitingWriteToLocalFile = false
-    },
-
-    // 创建本地文件
-    async createNewLocalFile() {
-      await this.createLocalFile(exampleData)
-    },
-
-    // 另存为
-    async saveLocalFile() {
-      let data = getData()
-      await this.createLocalFile(data)
+      
+      // 触发点击事件
+      document.body.appendChild(input)
+      input.click()
+      document.body.removeChild(input)
     },
 
     // 创建本地文件
     async createLocalFile(content) {
+      const support = this.checkFileSystemSupport()
+      
+      // 如果是Safari且不支持File System Access API，则使用传统方式
+      if (support.isSafari && !support.allSupported) {
+        this.createLocalFileTraditional(content)
+        return
+      }
+      
       try {
-        const support = this.checkFileSystemSupport()
         if (!support.showSaveFilePicker) {
           this.handleFileSystemError(
             new Error('showSaveFilePicker not supported'),
@@ -650,6 +631,40 @@ export default {
         loading.close()
       } catch (error) {
         this.handleFileSystemError(error, 'showSaveFilePicker')
+      }
+    },
+
+    // 使用传统方式创建/保存本地文件（用于Safari等不支持File System Access API的浏览器）
+    createLocalFileTraditional(content) {
+      try {
+        // 准备数据
+        let dataToSave = content
+        if (!this.isFullDataFile) {
+          dataToSave = content.root
+        }
+        const string = JSON.stringify(dataToSave)
+        
+        // 创建Blob对象
+        const blob = new Blob([string], { type: 'application/json' })
+        
+        // 创建临时a标签用于下载
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = this.$t('toolbar.defaultFileName') + '.smm'
+        a.style.display = 'none'
+        
+        // 触发下载
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        
+        // 释放Blob URL
+        URL.revokeObjectURL(a.href)
+        
+        this.$message.success(this.$t('toolbar.fileSavedSuccess'))
+      } catch (error) {
+        console.error('保存文件失败:', error)
+        this.$message.error(this.$t('toolbar.fileSaveFailed'))
       }
     }
 

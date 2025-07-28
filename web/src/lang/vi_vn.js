@@ -330,6 +330,8 @@ export default {
     export: 'Xuất',
     shortcutKey: 'Phím tắt',
     associativeLine: 'Đường liên kết',
+    fileSavedSuccess: 'Tệp đã lưu thành công',
+    fileSaveFailed: 'Lưu tệp thất bại',
     painter: 'Bút vẽ',
     formula: 'Công thức',
     attachment: 'Đính kèm',

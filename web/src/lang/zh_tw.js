@@ -326,6 +326,9 @@ export default {
     export: '匯出',
     shortcutKey: '快速鍵',
     associativeLine: '關聯線',
+    associativeLine: '關聯線',
+    fileSavedSuccess: '檔案儲存成功',
+    fileSaveFailed: '檔案儲存失敗'
     painter: '格式刷',
     formula: '公式',
     attachment: '附件',

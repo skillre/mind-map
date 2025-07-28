@@ -332,6 +332,8 @@ export default {
     export: 'Export',
     shortcutKey: 'Shortcut key',
     associativeLine: 'Associative line',
+    fileSavedSuccess: 'File saved successfully',
+    fileSaveFailed: 'File save failed'
     painter: 'Painter',
     formula: 'Formula',
     attachment: 'Attachment',
