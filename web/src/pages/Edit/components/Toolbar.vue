@@ -68,6 +68,14 @@
           <span class="icon iconfont iconexport"></span>
           <span class="text">{{ $t('toolbar.export') }}</span>
         </div>
+        <div
+          class="toolbarBtn"
+          @click="toggleGitHubStorage"
+          :class="{ active: isGitHubStorage }"
+        >
+          <span class="icon iconfont icongithub"></span>
+          <span class="text">{{ isGitHubStorage ? $t('toolbar.githubOn') : $t('toolbar.github') }}</span>
+        </div>
         <!-- 本地文件树 -->
         <div
           class="fileTreeBox"
@@ -213,6 +221,7 @@ export default {
     ...mapState({
       isDark: state => state.localConfig.isDark,
       isHandleLocalFile: state => state.isHandleLocalFile,
+      isGitHubStorage: state => state.isGitHubStorage,
       openNodeRichText: state => state.localConfig.openNodeRichText,
       enableAi: state => state.localConfig.enableAi
     }),
@@ -403,7 +412,8 @@ export default {
     // 获取Safari版本
     getSafariVersion() {
       const userAgent = navigator.userAgent
-      const safariMatch = userAgent.match(/version\/(\d+\.\d+)/i)
+      // 更新正则表达式以匹配更多版本格式，包括最新的Safari版本
+      const safariMatch = userAgent.match(/version\/(\d+(?:\.\d+)*)/i)
       return safariMatch ? safariMatch[1] : 'unknown'
     },
 
@@ -467,14 +477,14 @@ export default {
       if (support.isSafari && support.allSupported) {
         if (error.name === 'NotAllowedError') {
           this.$message.error(
-            '权限被拒绝。请确保：\n1. 网站使用HTTPS\n2. Safari偏好设置中已允许文件访问\n3. 重新加载页面后重试'
+            '权限被拒绝。请确保：\n1. 网站使用HTTPS协议访问\n2. Safari偏好设置中已允许文件访问\n3. 重新加载页面后重试'
           )
         } else if (error.name === 'AbortError') {
           // 用户取消，静默处理
           return
         } else if (error.name === 'SecurityError') {
           this.$message.error(
-            '安全错误：请确保网站通过HTTPS访问，且不在隐私浏览模式下'
+            '安全错误：请确保网站通过HTTPS协议访问，且不在隐私浏览模式下'
           )
         } else {
           // 其他错误，给出通用提示
@@ -671,6 +681,18 @@ export default {
     onNodeNoteDblclick(node, e) {
       e.stopPropagation()
       this.$bus.$emit('showNodeNote', node)
+    },
+
+    // 切换GitHub存储模式
+    toggleGitHubStorage() {
+      if (this.isGitHubStorage) {
+        // 如果当前是GitHub存储，则关闭
+        this.$store.commit('setIsGitHubStorage', false)
+        this.$message.success(this.$t('toolbar.githubOff'))
+      } else {
+        // 如果当前不是GitHub存储，则打开配置对话框
+        this.$bus.$emit('showGitHubConfig')
+      }
     }
   }
 }

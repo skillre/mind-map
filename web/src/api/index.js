@@ -2,6 +2,7 @@ import exampleData from 'simple-mind-map/example/exampleData'
 import { simpleDeepClone } from 'simple-mind-map/src/utils/index'
 import Vue from 'vue'
 import vuexStore from '@/store'
+import githubStorage from './githubStorage'
 
 const SIMPLE_MIND_MAP_DATA = 'SIMPLE_MIND_MAP_DATA'
 const SIMPLE_MIND_MAP_CONFIG = 'SIMPLE_MIND_MAP_CONFIG'
@@ -9,9 +10,10 @@ const SIMPLE_MIND_MAP_LANG = 'SIMPLE_MIND_MAP_LANG'
 const SIMPLE_MIND_MAP_LOCAL_CONFIG = 'SIMPLE_MIND_MAP_LOCAL_CONFIG'
 
 let mindMapData = null
+let currentFileName = 'default.smm'
 
 // 获取缓存的思维导图数据
-export const getData = () => {
+export const getData = async () => {
   // 接管模式
   if (window.takeOverApp) {
     mindMapData = window.takeOverAppMethods.getMindMapData()
@@ -20,6 +22,16 @@ export const getData = () => {
   // 操作本地文件模式
   if (vuexStore.state.isHandleLocalFile) {
     return Vue.prototype.getCurrentData()
+  }
+  // GitHub存储模式
+  if (vuexStore.state.isGitHubStorage) {
+    try {
+      const data = await githubStorage.getFileContent(currentFileName)
+      return data || simpleDeepClone(exampleData)
+    } catch (error) {
+      console.error('从GitHub获取数据失败:', error)
+      return simpleDeepClone(exampleData)
+    }
   }
   let store = localStorage.getItem(SIMPLE_MIND_MAP_DATA)
   if (store === null) {
@@ -34,13 +46,13 @@ export const getData = () => {
 }
 
 // 存储思维导图数据
-export const storeData = data => {
+export const storeData = async (data) => {
   try {
     let originData = null
     if (window.takeOverApp) {
       originData = mindMapData
     } else {
-      originData = getData()
+      originData = await getData()
     }
     if (!originData) {
       originData = {}
@@ -57,6 +69,15 @@ export const storeData = data => {
     Vue.prototype.$bus.$emit('write_local_file', originData)
     if (vuexStore.state.isHandleLocalFile) {
       return
+    }
+    // GitHub存储模式
+    if (vuexStore.state.isGitHubStorage) {
+      try {
+        await githubStorage.saveFileContent(currentFileName, originData)
+        return
+      } catch (error) {
+        console.error('保存到GitHub失败:', error)
+      }
     }
     localStorage.setItem(SIMPLE_MIND_MAP_DATA, JSON.stringify(originData))
   } catch (error) {
@@ -133,4 +154,77 @@ export const getLocalConfig = () => {
     return JSON.parse(config)
   }
   return null
+}
+
+// GitHub存储相关函数
+export const setCurrentFileName = (fileName) => {
+  currentFileName = fileName || 'default.smm'
+}
+
+export const getCurrentFileName = () => {
+  return currentFileName
+}
+
+export const getGitHubFileList = async () => {
+  try {
+    return await githubStorage.getFileList()
+  } catch (error) {
+    console.error('获取GitHub文件列表失败:', error)
+    return []
+  }
+}
+
+export const loadGitHubFile = async (fileName) => {
+  try {
+    const data = await githubStorage.getFileContent(fileName)
+    if (data) {
+      setCurrentFileName(fileName)
+      return data
+    }
+    return null
+  } catch (error) {
+    console.error('加载GitHub文件失败:', error)
+    throw error
+  }
+}
+
+export const saveToGitHub = async (fileName, data) => {
+  try {
+    await githubStorage.saveFileContent(fileName, data)
+    setCurrentFileName(fileName)
+  } catch (error) {
+    console.error('保存到GitHub失败:', error)
+    throw error
+  }
+}
+
+export const deleteGitHubFile = async (fileName) => {
+  try {
+    await githubStorage.deleteFile(fileName)
+  } catch (error) {
+    console.error('删除GitHub文件失败:', error)
+    throw error
+  }
+}
+
+export const initGitHubStorage = (config) => {
+  githubStorage.init(config)
+}
+
+export const getGitHubConfig = () => {
+  return githubStorage.getConfigFromLocal()
+}
+
+export const saveGitHubConfig = (config) => {
+  githubStorage.saveConfigToLocal(config)
+}
+
+export const startAutoSave = (getDataCallback) => {
+  if (vuexStore.state.isGitHubStorage) {
+    githubStorage.startAutoSave(currentFileName, getDataCallback)
+  }
+}
+
+export const stopAutoSave = () => {
+  githubStorage.stopAutoSave()
 }

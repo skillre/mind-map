@@ -7,6 +7,7 @@ Vue.use(Vuex)
 const store = new Vuex.Store({
   state: {
     isHandleLocalFile: false, // 是否操作的是本地文件
+    isGitHubStorage: false, // 是否使用GitHub存储
     localConfig: {
       // 本地配置
       isZenMode: false, // 是否是禅模式
@@ -43,6 +44,11 @@ const store = new Vuex.Store({
     // 设置操作本地文件标志位
     setIsHandleLocalFile(state, data) {
       state.isHandleLocalFile = data
+    },
+
+    // 设置GitHub存储模式
+    setIsGitHubStorage(state, data) {
+      state.isGitHubStorage = data
     },
 
     // 设置本地配置
