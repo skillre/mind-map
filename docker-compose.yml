@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  mind-map-cus:
+    build: .
+    image: mind-map-cus
+    restart: unless-stopped  # 新增重启策略
+    ports:
+      - "4880:80"
+    container_name: mind-map-container-cus
+    networks:
+      - skillre
+
+networks:
+  skillre:
