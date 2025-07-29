@@ -1,14 +1,74 @@
 version: '3.8'
+
 services:
-  mind-map-cus:
-    build: .
-    image: mind-map-cus
-    restart: unless-stopped  # 新增重启策略
+  # 生产环境
+  mind-map-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production-stage
+    image: mind-map:latest
+    container_name: mind-map-prod
+    restart: unless-stopped
     ports:
-      - "4880:80"
-    container_name: mind-map-container-cus
+      - "8080:80"
     networks:
-      - skillre
+      - mind-map-network
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - nginx_logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 开发环境（可选）
+  mind-map-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development-stage
+    image: mind-map:dev
+    container_name: mind-map-dev
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    networks:
+      - mind-map-network
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    profiles:
+      - dev
+
+  # Nginx反向代理（可选，用于HTTPS和负载均衡）
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: mind-map-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - mind-map-prod
+    networks:
+      - mind-map-network
+    profiles:
+      - proxy
+
+volumes:
+  nginx_logs:
+    driver: local
 
 networks:
-  skillre:
+  mind-map-network:
+    driver: bridge
